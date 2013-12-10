@@ -40,35 +40,29 @@ class Pouring(capacity: Vector[Int]) {
       (for (from <- glasses; to <- glasses; if from != to) yield Pour(from, to))
 
   // Paths
-  // 记录moves动作路径，history为历史动作路径 
-  class Path(history: List[Move]) {
-    // 从initialState状态生成当前状态, endState为当前动作状态，每次调用均会重新计算
-    def endState: State = (history foldRight initialState)(_ change _)
-    // 从initialState状态生成当前状态 === history.foldRight(initialState)(_ change _)
-    private def trackState(xs: List[Move]): State = xs match {
-      case Nil => initialState
-      case move :: xs1 => move change trackState(xs1)
-    }
+  // 记录moves动作路径，history为历史动作路径，endState为当前状态 
+  class Path(history: List[Move], val endState: State) {
     // 扩展路径，将move加入动作列表中，将当前endState使用move动作
-    def extend(move: Move) = new Path(move :: history)
+    def extend(move: Move) = new Path(move :: history, move change endState)
     override def toString = (history.reverse mkString " ") + " ==> " + endState + "\n"
   }
 
-  val initialPath = new Path(Nil)
+  val initialPath = new Path(Nil, initialState)
 
   // 生成动作路径集合的序列，返回Stream
-  def from(paths: Set[Path]): Stream[Set[Path]] =
+  def from(paths: Set[Path], explored: Set[State]): Stream[Set[Path]] =
     if (paths.isEmpty) Stream.empty
     else {
       val more = for {
         path <- paths   // 路径列表
         next <- moves map path.extend  // 在path.extend上应用可用的moves动作集合，产生下一个状态
+        if !(explored contains next.endState)
       } yield next
-      paths #:: from(more)
+      paths #:: from(more, explored ++ more.map(_.endState))
     }
 
   // 从初始路径集合中出发的Stream序列
-  val pathSets = from(Set(initialPath))
+  val pathSets = from(Set(initialPath), Set(initialState))
 
   // 寻找解，返回路径序列
   def solutions(target: Int): Stream[Path] =
